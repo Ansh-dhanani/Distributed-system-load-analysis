@@ -1,0 +1,12 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: php-apache
+  namespace: demo
+spec:
+  # Keep at least one replica serving during voluntary disruptions
+  # (node drains, upgrades). Does not cost anything.
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: php-apache
