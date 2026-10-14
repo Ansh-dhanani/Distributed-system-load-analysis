@@ -13,6 +13,7 @@ keeps billing.
 ```mermaid
 flowchart LR
     Q["❓ How many users<br/>can this serve?"] --> M["📈 Measure"] --> A["🔍 Analyse"] --> F["🔧 Fix one thing"] --> M
+    classDef default fill:#f6f8fa,stroke:#d0d7de,color:#1f2328;
 ```
 
 ---
@@ -69,6 +70,12 @@ flowchart TB
     OPS --> O1["Terraform · Ansible"]
     OPS --> O2["Prometheus · Grafana · Jaeger"]
     OPS --> O3["build-push · run-load · db-bench · destroy"]
+
+    classDef default fill:#f6f8fa,stroke:#d0d7de,color:#1f2328;
+    classDef study fill:#fff8c5,stroke:#d4a72c,color:#7d4e00;
+    classDef lab   fill:#ddf4ff,stroke:#54aeff,color:#0a3069;
+    class STUDY,S1 study;
+    class LAB,L1,L2,L3 lab;
 ```
 
 ---
@@ -112,6 +119,16 @@ flowchart TB
     A1 -.->|"OTLP spans"| JAEG
     PROM -.->|"scrape /metrics"| A1
     GRAF -.->|"datasource"| PROM
+
+    classDef default fill:#f6f8fa,stroke:#d0d7de,color:#1f2328;
+    classDef data fill:#ddf4ff,stroke:#54aeff,color:#0a3069;
+    classDef obs  fill:#fff8c5,stroke:#d4a72c,color:#7d4e00;
+    class PG,RD data;
+    class PROM,GRAF,JAEG obs;
+    style LAB fill:#f6f8fa,stroke:#d0d7de,color:#1f2328
+    style NS fill:#ffffff,stroke:#d0d7de,color:#1f2328
+    style APPS fill:#f6f8fa,stroke:#d0d7de,color:#1f2328
+    style OBS fill:#f6f8fa,stroke:#d0d7de,color:#1f2328
 ```
 
 Whole-node picture: [CLUSTER.md](CLUSTER.md) · Terraform: `infra/terraform/`.
@@ -169,9 +186,11 @@ flowchart LR
 
     P0 --> P1 --> P2 --> P3 --> P4 --> P5
 
-    style P0 fill:#ffe3e3,stroke:#cc0000,color:#7a0000
-    style P1 fill:#dcf5dc,stroke:#0a7d0a,color:#0a4d0a
-    style P5 fill:#ffe3e3,stroke:#cc0000,color:#7a0000
+    classDef default fill:#f6f8fa,stroke:#d0d7de,color:#1f2328;
+    classDef good fill:#dafbe1,stroke:#4ac26b,color:#0f5323;
+    classDef bad  fill:#ffebe9,stroke:#ff8182,color:#82071e;
+    class P1 good;
+    class P5 bad;
 ```
 
 | Phase | Change | Problem it fixes | Tradeoff |
@@ -199,6 +218,10 @@ flowchart LR
     S0 -->|"correctness"| S1
     S1 -->|"read load"| S2
     S2 -->|"write ceiling"| S3
+
+    classDef default fill:#f6f8fa,stroke:#d0d7de,color:#1f2328;
+    classDef warn fill:#fff8c5,stroke:#d4a72c,color:#7d4e00;
+    class S3 warn;
 ```
 
 Reasoning and cost/benefit per step: [DB_EVOLUTION.md](apps/demo-shop/DB_EVOLUTION.md).
@@ -217,6 +240,12 @@ flowchart LR
     APP -->|"OTLP spans"| JAEG["Jaeger"]
     K6["k6 Job"] -.->|"client spans<br/>(--traces-output)"| JAEG
     PROM --> GRAF["Grafana dashboard"]
+
+    classDef default fill:#f6f8fa,stroke:#d0d7de,color:#1f2328;
+    classDef app fill:#ddf4ff,stroke:#54aeff,color:#0a3069;
+    classDef obs fill:#fff8c5,stroke:#d4a72c,color:#7d4e00;
+    class APP,K6 app;
+    class PROM,GRAF,JAEG obs;
 ```
 
 | Signal | Endpoint / source | Enabled by |
@@ -256,6 +285,10 @@ flowchart LR
     DEP --> LOAD["run-load.sh<br/>db-bench.sh"]
     LOAD --> OBS["port-forward Grafana / Jaeger"]
     OBS --> DEST["destroy.sh<br/>delete everything"]
+
+    classDef default fill:#f6f8fa,stroke:#d0d7de,color:#1f2328;
+    classDef bad fill:#ffebe9,stroke:#ff8182,color:#82071e;
+    class DEST bad;
 ```
 
 ### 0 · Prerequisites
