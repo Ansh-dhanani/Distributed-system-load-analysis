@@ -169,9 +169,9 @@ flowchart LR
 
     P0 --> P1 --> P2 --> P3 --> P4 --> P5
 
-    style P0 fill:#ffe9e9,stroke:#c00
-    style P1 fill:#e9ffe9,stroke:#0a0
-    style P5 fill:#ffe9e9,stroke:#c00
+    style P0 fill:#ffe3e3,stroke:#cc0000,color:#7a0000
+    style P1 fill:#dcf5dc,stroke:#0a7d0a,color:#0a4d0a
+    style P5 fill:#ffe3e3,stroke:#cc0000,color:#7a0000
 ```
 
 | Phase | Change | Problem it fixes | Tradeoff |
