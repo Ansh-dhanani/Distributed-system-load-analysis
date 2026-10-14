@@ -1,0 +1,37 @@
+# Optional tracing backend. The app auto-enables OTLP export when
+# OTEL_EXPORTER_OTLP_ENDPOINT is set (e.g. http://jaeger.demo.svc.cluster.local:4318).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jaeger
+  namespace: demo
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: jaeger }
+  template:
+    metadata:
+      labels: { app: jaeger }
+    spec:
+      containers:
+        - name: jaeger
+          image: jaegertracing/all-in-one:1.60
+          env:
+            - { name: COLLECTOR_OTLP_ENABLED, value: "true" }
+          ports:
+            - { containerPort: 16686, name: ui }
+            - { containerPort: 4318, name: otlp }
+          resources:
+            requests: { cpu: 100m, memory: 192Mi }
+            limits: { cpu: 400m, memory: 512Mi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: jaeger
+  namespace: demo
+spec:
+  selector: { app: jaeger }
+  ports:
+    - { port: 16686, targetPort: 16686 }
+    - { port: 4318, targetPort: 4318 }

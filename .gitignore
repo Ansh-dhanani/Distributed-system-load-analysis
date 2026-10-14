@@ -1,0 +1,19 @@
+# secrets / generated
+infra/ansible/keys/
+*.pem
+*.key
+.env
+
+# terraform
+infra/terraform/.terraform/
+infra/terraform/*.tfstate
+infra/terraform/*.tfstate.*
+infra/terraform/*.tfplan
+crash.log
+
+# local
+*.swp
+.DS_Store
+__pycache__/
+*.pyc
+*.orig

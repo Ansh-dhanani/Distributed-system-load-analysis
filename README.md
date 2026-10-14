@@ -15,6 +15,12 @@ cluster** so results reflect service capacity, not laptop bandwidth.
 
 \* Real users with ~5–10s think time: `users ~= RPS x (response + think)`.
 
+> **Two workloads live here.** `manifests/` is the original study's synthetic
+> CPU-burner (`registry.k8s.io/hpa-example`) — that's what the measured TL;DR
+> above refers to. `apps/demo-shop/` is the **real** FastAPI app (products,
+> cart, checkout; SQLite/Postgres + optional Redis) used for the phased
+> optimization ladder in `RESULTS_PHASES.md`.
+
 ## Contents
 
 - `results/results.md` — full numbers for every run (5 runs + 1 tuning experiment)
@@ -41,17 +47,40 @@ cluster** so results reflect service capacity, not laptop bandwidth.
 ## How to reproduce
 
 ```bash
-# on the control plane (or any host with cluster access):
-# 1. bake the VU level into load-test/k6-capacity.js (RAMP_VU / HOLD_VU)
+# one command (builds configmap, runs the Job, prints the summary)
+./scripts/run-load.sh
+# or the explicit form:
 kubectl -n demo create configmap k6-script \
-  --from-file=k6.js=k6-capacity.js --dry-run=client -o yaml | kubectl apply -f -
+  --from-file=k6.js=apps/demo-shop/load/k6-realistic.js --dry-run=client -o yaml | kubectl apply -f -
 kubectl -n demo delete job k6 --ignore-not-found --wait=true
 kubectl apply -f load-test/k6-job.yaml
 kubectl -n demo wait --for=condition=complete job/k6 --timeout=600s
 kubectl -n demo logs job/k6 | tail -25
 # watch scaling live in another terminal:
-kubectl -n demo get hpa php-apache --watch
+kubectl -n demo get hpa demo-shop --watch
 ```
+
+For the original php-apache study workload, swap the script for
+`load-test/k6-capacity.js` (edit `RAMP_VU`/`HOLD_VU`) and watch `hpa php-apache`.
+
+## Phases, results & analysis
+- `RESULTS_PHASES.md` — the phase-by-phase ladder (baseline → HPA → Postgres →
+  cache → monitoring cost → vertical-scaling counter-example) with the table to
+  fill and the reason each change helps or hurts.
+- `SHOWCASE.md` — narrative version of the same ladder.
+- `apps/demo-shop/DB_EVOLUTION.md` — DB-only ladder with tradeoffs.
+- `apps/demo-shop/PHASE_COMMANDS.md` — one command per DB phase.
+- `apps/demo-shop/bench/DB_BENCH.md` — DB-only capacity sweep (rows × clients) via pgbench.
+
+## Observability & tracing
+- `apps/demo-shop/OBSERVABILITY.md` — metrics, logs, PromQL queries, teardown.
+- `apps/demo-shop/TRACING.md` — k6 → app → DB end-to-end in Jaeger.
+- `monitoring/` — lightweight Prometheus + Grafana (auto dashboard) + Jaeger.
+- `infra/ansible/playbooks/30-monitoring.yml` — optional (`--tags monitoring`).
+
+## Rebuild the lab from scratch
+See `infra/REBUILD.md`; tear everything down with `./scripts/destroy.sh`.
+
 
 ## Infra changes shipped from this study
 

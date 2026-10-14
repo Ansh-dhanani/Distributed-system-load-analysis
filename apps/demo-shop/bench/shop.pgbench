@@ -1,0 +1,16 @@
+-- Custom pgbench script: read-heavy + write workload matching the app's hot paths.
+\set pid random(1, :scale)
+\set uid random(1, :users)
+
+BEGIN;
+-- hot read: paginated product list (the endpoint the Redis cache targets)
+SELECT * FROM products ORDER BY id LIMIT 50 OFFSET :pid;
+-- point read by primary key
+SELECT * FROM products WHERE id = :pid;
+-- write path: insert a cart row
+INSERT INTO carts(user_id, product_id, qty) VALUES (CAST(:uid AS TEXT), :pid, 1);
+-- read-your-write: fetch that user's cart
+SELECT * FROM carts WHERE user_id = CAST(:uid AS TEXT);
+-- cleanup keeps the working set stable across runs
+DELETE FROM carts WHERE user_id = CAST(:uid AS TEXT);
+COMMIT;

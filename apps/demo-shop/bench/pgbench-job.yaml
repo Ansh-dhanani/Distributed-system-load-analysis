@@ -1,0 +1,70 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pgbench-files
+  namespace: demo
+data:
+  schema.sql: |
+    CREATE TABLE IF NOT EXISTS products (
+      id SERIAL PRIMARY KEY, name TEXT, price REAL, stock INTEGER);
+    CREATE TABLE IF NOT EXISTS carts (
+      user_id TEXT, product_id INTEGER, qty INTEGER);
+    CREATE INDEX IF NOT EXISTS idx_carts_user ON carts(user_id);
+    CREATE INDEX IF NOT EXISTS idx_products_name ON products(name);
+  shop.pgbench: |
+    \set pid random(1, :scale)
+    \set uid random(1, :users)
+    BEGIN;
+    SELECT * FROM products ORDER BY id LIMIT 50 OFFSET :pid;
+    SELECT * FROM products WHERE id = :pid;
+    INSERT INTO carts(user_id, product_id, qty) VALUES (CAST(:uid AS TEXT), :pid, 1);
+    SELECT * FROM carts WHERE user_id = CAST(:uid AS TEXT);
+    DELETE FROM carts WHERE user_id = CAST(:uid AS TEXT);
+    COMMIT;
+---
+# Direct DB benchmark. Tuned via env before apply:
+#   ROWS=1000000  CLIENTS=50  DURATION=60  JOBS=4
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: pgbench
+  namespace: demo
+spec:
+  backoffLimit: 0
+  ttlSecondsAfterFinished: 1800
+  template:
+    metadata:
+      labels: { app: pgbench }
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: pgbench
+          image: postgres:16-alpine   # ships the pgbench binary
+          env:
+            - { name: PGPASSWORD, value: demo }
+            - { name: ROWS, value: "100000" }
+            - { name: CLIENTS, value: "20" }
+            - { name: DURATION, value: "60" }
+            - { name: JOBS, value: "4" }
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -e
+              echo "== applying schema"
+              psql -h postgres -U demo -d demo -v ON_ERROR_STOP=1 -f /bench/schema.sql
+              echo "== seeding $ROWS products"
+              psql -h postgres -U demo -d demo -c \
+                "TRUNCATE products; INSERT INTO products(name,price,stock) SELECT 'Item-'||g, random()*199+1, floor(random()*1000)::int FROM generate_series(1, ${ROWS}) g" \
+                -c "ANALYZE products"
+              echo "== run: clients=$CLIENTS jobs=$JOBS duration=${DURATION}s"
+              pgbench -h postgres -U demo -d demo \
+                -c ${CLIENTS} -j ${JOBS} -T ${DURATION} \
+                -f /bench/shop.pgbench -D scale=${ROWS} -D users=1000
+          resources:
+            requests: { cpu: 200m, memory: 128Mi }
+            limits: { cpu: 500m, memory: 512Mi }
+          volumeMounts:
+            - { name: bench, mountPath: /bench }
+      volumes:
+        - name: bench
+          configMap: { name: pgbench-files }

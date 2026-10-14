@@ -1,0 +1,100 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-datasource
+  namespace: demo
+data:
+  datasource.yaml: |
+    apiVersion: 1
+    datasources:
+      - name: Prometheus
+        type: prometheus
+        access: proxy
+        url: http://prometheus.demo.svc.cluster.local:9090
+        isDefault: true
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard
+  namespace: demo
+data:
+  shop.json: |
+    {
+      "title": "Demo Shop - capacity",
+      "schemaVersion": 39,
+      "version": 1,
+      "editable": true,
+      "panels": [
+        {"title": "RPS by pod", "type": "graph",
+         "targets": [{"expr": "sum by (pod) (rate(shop_requests_total[1m]))"}]},
+        {"title": "p95 latency (s)", "type": "graph",
+         "targets": [{"expr": "histogram_quantile(0.95, sum by (le) (rate(shop_request_latency_seconds_bucket[5m])))"}]},
+        {"title": "p99 DB query time (s)", "type": "graph",
+         "targets": [{"expr": "histogram_quantile(0.99, sum by (le,op) (rate(shop_db_query_seconds_bucket[5m])))"}]},
+        {"title": "Cache hit ratio", "type": "graph",
+         "targets": [{"expr": "sum(rate(shop_cache_events_total{result=\"hit\"}[5m])) / clamp_min(sum(rate(shop_cache_events_total[5m])),1)"}]},
+        {"title": "Errors/s", "type": "graph",
+         "targets": [{"expr": "sum(rate(shop_requests_total{status=~\"5..\"}[1m]))"}]}
+      ]
+    }
+---
+# dashboard provider so the JSON below is actually auto-loaded by Grafana
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboards-provider
+  namespace: demo
+data:
+  dashboards.yaml: |
+    apiVersion: 1
+    providers:
+      - name: 'lab'
+        orgId: 1
+        folder: ''
+        type: file
+        disableDeletion: true
+        updateIntervalSeconds: 30
+        options:
+          path: /var/lib/grafana/dashboards
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grafana
+  namespace: demo
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: grafana }
+  template:
+    metadata:
+      labels: { app: grafana }
+    spec:
+      containers:
+        - name: grafana
+          image: grafana/grafana:11.2.0
+          env:
+            - { name: GF_SECURITY_ADMIN_PASSWORD, value: admin }
+            - { name: GF_INSTALL_PLUGINS, value: "" }
+          ports: [{ containerPort: 3000, name: http }]
+          resources:
+            requests: { cpu: 100m, memory: 128Mi }
+            limits: { cpu: 300m, memory: 256Mi }
+          volumeMounts:
+            - { name: ds, mountPath: /etc/grafana/provisioning/datasources }
+            - { name: prov, mountPath: /etc/grafana/provisioning/dashboards }
+            - { name: dash, mountPath: /var/lib/grafana/dashboards }
+      volumes:
+        - { name: ds, configMap: { name: grafana-datasource } }
+        - { name: prov, configMap: { name: grafana-dashboards-provider } }
+        - { name: dash, configMap: { name: grafana-dashboard } }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: grafana
+  namespace: demo
+spec:
+  selector: { app: grafana }
+  ports: [{ port: 3000, targetPort: 3000 }]

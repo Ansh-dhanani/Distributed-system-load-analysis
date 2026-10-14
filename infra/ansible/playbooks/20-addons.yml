@@ -1,0 +1,42 @@
+---
+- name: CNI + addons
+  hosts: control_plane
+  become: false
+  tasks:
+    - name: Install Calico operator
+      ansible.builtin.command: kubectl apply -f https://raw.githubusercontent.com/projectcalico/calico/v3.32.2/manifests/calico.yaml
+      changed_when: false
+    - name: Wait for nodes Ready
+      ansible.builtin.command: kubectl wait --for=condition=Ready nodes --all --timeout=300s
+      changed_when: false
+    - name: Install metrics-server
+      ansible.builtin.command: kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
+      changed_when: false
+    - name: Patch metrics-server (insecure TLS for lab)
+      ansible.builtin.command: >
+        kubectl patch deployment metrics-server -n kube-system
+        --type='json' -p='[{"op":"add","path":"/spec/template/spec/containers/0/args/-","value":"--kubelet-insecure-tls"}]'
+      changed_when: false
+      ignore_errors: true
+    - name: Wait for metrics-server deployment
+      ansible.builtin.command: kubectl wait --for=condition=Available deployment/metrics-server -n kube-system --timeout=180s
+      changed_when: false
+    - name: Wait for metrics API (HPA needs it)
+      ansible.builtin.command: kubectl wait --for=condition=Available apiservice/v1beta1.metrics.k8s.io --timeout=180s
+      changed_when: false
+      ignore_errors: true
+    - name: Copy manifests
+      ansible.builtin.copy:
+        src: "{{ playbook_dir }}/../../manifests/"
+        dest: /home/ubuntu/manifests/
+
+    - name: Ensure demo namespace
+      ansible.builtin.command: kubectl apply -f /home/ubuntu/manifests/namespace.yaml
+      changed_when: false
+
+    # Original study workload (php-apache). Skip it when benchmarking
+    # apps/demo-shop only:  ansible-playbook ... --skip-tags study-workload
+    - name: Apply app manifests
+      ansible.builtin.command: kubectl apply -f /home/ubuntu/manifests/
+      changed_when: false
+      tags: study-workload

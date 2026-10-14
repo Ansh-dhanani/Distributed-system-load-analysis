@@ -1,0 +1,62 @@
+# Phase 3 = Phase 2 (Postgres) + Redis cache layer.
+# Apply order:  kubectl apply -f phase2-postgres.yaml   then this file
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis
+  namespace: demo
+spec:
+  selector: { app: redis }
+  ports: [{ port: 6379, targetPort: 6379 }]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis
+  namespace: demo
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: redis }
+  template:
+    metadata:
+      labels: { app: redis }
+    spec:
+      containers:
+        - name: redis
+          image: redis:7-alpine
+          args: ["redis-server", "--save", "", "--appendonly", "no", "--maxmemory", "128mb", "--maxmemory-policy", "allkeys-lru"]
+          ports: [{ containerPort: 6379 }]
+          resources:
+            requests: { cpu: 50m, memory: 128Mi }
+            limits: { cpu: 200m, memory: 256Mi }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: demo-shop
+  namespace: demo
+spec:
+  replicas: 2
+  selector:
+    matchLabels: { app: demo-shop }
+  template:
+    metadata:
+      labels: { app: demo-shop }
+    spec:
+      containers:
+        - name: app
+          image: anshdhanani/demo-shop:latest
+          ports: [{ containerPort: 80, name: http }]
+          env:
+            - name: DATABASE_URL
+              value: postgresql://demo:demo@postgres.demo.svc.cluster.local:5432/demo
+            - name: REDIS_URL
+              value: redis://redis.demo.svc.cluster.local:6379/0
+          resources:
+            requests: { cpu: 200m, memory: 128Mi }
+            limits: { cpu: 500m, memory: 256Mi }
+          readinessProbe:
+            httpGet: { path: /health, port: 80 }
+            initialDelaySeconds: 5
+            periodSeconds: 5

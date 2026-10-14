@@ -1,0 +1,52 @@
+---
+# Optional monitoring + tracing. The block below is guarded so a normal
+# `site.yml` run does NOT install it; it only runs when you explicitly pass
+# `--tags monitoring`. (Ansible tags do not filter on a plain run, hence the guard.)
+- name: Monitoring and tracing
+  hosts: control_plane
+  become: false
+  tags: monitoring
+  tasks:
+    - name: Monitoring stack
+      when: "'monitoring' in ansible_run_tags"
+      block:
+        - name: Copy monitoring manifests
+          ansible.builtin.copy:
+            src: "{{ playbook_dir }}/../../monitoring/"
+            dest: /home/ubuntu/monitoring/
+            mode: '0644'
+
+        - name: Ensure demo namespace
+          ansible.builtin.command: kubectl create namespace demo
+          register: ns
+          failed_when: ns.rc != 0 and 'AlreadyExists' not in ns.stderr
+          changed_when: ns.rc == 0
+
+        - name: Apply Prometheus (RBAC + config + deployment)
+          ansible.builtin.command: kubectl apply -f /home/ubuntu/monitoring/prometheus.yaml
+          register: prom
+          changed_when: "'created' in prom.stdout or 'configured' in prom.stdout"
+
+        - name: Apply Grafana
+          ansible.builtin.command: kubectl apply -f /home/ubuntu/monitoring/grafana.yaml
+          register: graf
+          changed_when: "'created' in graf.stdout or 'configured' in graf.stdout"
+
+        - name: Apply Jaeger (tracing)
+          ansible.builtin.command: kubectl apply -f /home/ubuntu/monitoring/jaeger.yaml
+          register: jae
+          changed_when: "'created' in jae.stdout or 'configured' in jae.stdout"
+
+        - name: Wait for monitoring pods
+          ansible.builtin.command: >
+            kubectl wait --for=condition=Ready pod
+            -l 'app in (prometheus,grafana,jaeger)' -n demo --timeout=180s
+          changed_when: false
+          ignore_errors: true
+
+        - name: Summary
+          ansible.builtin.debug:
+            msg:
+              - "Prometheus: kubectl -n demo port-forward svc/prometheus 9090:9090"
+              - "Grafana:    kubectl -n demo port-forward svc/grafana 3000:3000  (admin/admin)"
+              - "Jaeger UI:  kubectl -n demo port-forward svc/jaeger 16686:16686"

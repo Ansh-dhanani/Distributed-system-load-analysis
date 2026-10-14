@@ -14,8 +14,11 @@ spec:
       restartPolicy: Never
       containers:
         - name: k6
-          image: grafana/k6:latest
+          image: grafana/k6:2.3.0
           args: ["run", "/scripts/k6.js"]
+          env:
+            - name: TARGET_URL
+              value: "http://demo-shop.demo.svc.cluster.local"
           resources:
             requests:
               cpu: 100m

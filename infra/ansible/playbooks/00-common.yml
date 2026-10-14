@@ -1,0 +1,66 @@
+---
+- name: Common prerequisites
+  hosts: all
+  become: true
+  tasks:
+    - name: Disable swap
+      ansible.builtin.command: swapoff -a
+      changed_when: false
+    - name: Remove swap from fstab
+      ansible.builtin.lineinfile:
+        path: /etc/fstab
+        regexp: '^[^#].*\sswap\s'
+        state: absent
+    - name: Install dependencies
+      ansible.builtin.apt:
+        update_cache: true
+        name:
+          - apt-transport-https
+          - ca-certificates
+          - curl
+          - gnupg
+          - containerd
+        state: present
+    - name: Configure containerd
+      ansible.builtin.shell: |
+        mkdir -p /etc/containerd
+        containerd config default > /etc/containerd/config.toml
+        sed -i 's/SystemdCgroup = false/SystemdCgroup = true/' /etc/containerd/config.toml
+        systemctl restart containerd
+        systemctl enable containerd
+      args:
+        creates: /etc/containerd/config.toml
+    - name: Add Kubernetes apt repo
+      ansible.builtin.shell: |
+        mkdir -p /etc/apt/keyrings
+        curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.36/deb/Release.key | gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+        echo "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.36/deb/ /" > /etc/apt/sources.list.d/kubernetes.list
+        apt-get update
+      args:
+        creates: /etc/apt/sources.list.d/kubernetes.list
+    - name: Install kubeadm/kubelet/kubectl
+      ansible.builtin.apt:
+        name:
+          - kubelet
+          - kubeadm
+          - kubectl
+        state: present
+    - name: Hold versions
+      ansible.builtin.command: apt-mark hold kubelet kubeadm kubectl
+      changed_when: false
+    - name: Performance tuning sysctls
+      ansible.builtin.copy:
+        dest: /etc/sysctl.d/99-k8s-perf.conf
+        content: |
+          net.core.somaxconn = 4096
+          net.ipv4.tcp_max_syn_backlog = 4096
+          net.core.netdev_max_backlog = 5000
+          net.ipv4.tcp_tw_reuse = 1
+          net.ipv4.ip_local_port_range = 1024 65535
+          vm.swappiness = 0
+          net.ipv4.conf.all.rp_filter = 0
+          fs.file-max = 1000000
+      notify: apply sysctl
+  handlers:
+    - name: apply sysctl
+      ansible.builtin.command: sysctl --system
