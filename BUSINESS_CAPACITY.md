@@ -61,18 +61,52 @@ Whole test stack used ≈ **$0.08/hour (≈ $58/month)** and is already torn dow
 
 ## 6. Max-optimization ceiling (app + DB + cache combined)
 
-Beyond the measured phases, each layer adds headroom linearly only after
-Layer 1; none above Layer 3 ("max optimization") was live-measured here.
+### The rule that explains every row below
+A stack's ceiling is **not** `app capacity` and **not** `db capacity` — it is:
 
+```
+overall = min( app capacity,  db capacity / fraction-of-requests-that-hit-the-db )
+```
+
+With the two numbers we actually have (app ≈ 4 M req/day, DB ≈ 2 M req/day):
+
+| % of requests reaching the DB | Overall ceiling |
+|---|---|
+| 100 % (every request reads/writes) | **~2 M/day** — DB-bound; the app's spare 2 M sits idle |
+| 50 % | ~4 M/day — both tiers saturated together |
+| 25 % | ~4 M/day — app-bound, DB at half load |
+| 10 % | 4 M/day — DB is nearly idle, app is the wall |
+
+This is the entire point of caching, pooling and CDN: **not making the DB faster,
+but making requests not need the DB.** Push more traffic than the DB can take and
+it doesn't degrade gracefully — queues build, p99 spikes, the app thread-blocks
+and you lose *both* capacities, not just the DB's.
+
+### Layer ladder
 | Layer | Change | Unlock |
 |---|---|---|
 | L1 (done) Phase 1 HPA | 1→6 pods | 3.2× RPS (16 → 53) |
 | L2 (done) Phase 2 Postgres | shared carts/checkouts | correctness (no lost orders) |
-| L3 (done) Phase 3 Redis | 97.8% cache hit, p50 105→54 ms | latency −48 % |
+| L3 (done) Phase 3 Redis | 97.8% cache hit, p50 105→54 ms | latency −48 %; shrinking the DB-hit fraction |
 | L4 (NEW) PgBouncer/pool | per-request connect → pool | prerequisite for >150 RPS |
-| L5 (NEW) CDN edge-cache | 80–90 % reads served at edge | 5–10× effective RPS, no extra infra |
+| L5 (NEW) CDN edge-cache | reads served at the edge | see below |
 | L6 (NEW) multi-AZ + autoscaler | grow past the 3 vCPU / 6-pod cap | ~450 k–1 M DAU |
 | L7 (NEW) Aurora PG + read replica | writes stay primary, reads split | needed only past ~1 k sustained RPS price floor ~$80–180/mo |
+
+### What a CDN (L5) specifically changes
+A CDN only caches **GET** requests. In this app that is `/products` and
+`/products/{id}` — `/cart` and `/checkout` are **POSTs and are never cached**,
+so every order still goes app → DB regardless of the CDN. The arithmetic, using
+a realistic 70 % reads / 30 % writes mix and a 95 % edge hit rate:
+
+```
+traffic that still reaches app+DB = 0.30 (writes) + 0.70 × 0.05 (missed reads)
+                                 = 33.5 % of total
+overall = 4 M / 0.335 → capped by DB at 2 M / 0.335 ≈ 6 M/day
+```
+
+So a CDN roughly **triples** the ceiling (2 M → ~6 M/day) on this mix. It does
+**nothing** for a write-heavy workload: at 90 % writes the lift is only 4 %.
 
 **Pragmatic max on this architecture, single region:** ~90–110 RPS steady-state
 (~8–10 M/day at 100 req/user) with L1+L3 today, ~500–1 000+ RPS at the edge
