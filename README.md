@@ -303,9 +303,14 @@ IMAGE=<user>/demo-shop:latest \
 IMAGE=ghcr.io/<owner>/demo-shop:latest \
   GHCR_TOKEN=<pat-with-write:packages> ./scripts/build-push.sh
 
+The default image (`anshdhanani/demo-shop:latest`) is published **and public**, so
+the commands below work with no `IMAGE` set and no login:
+```bash
+./scripts/deploy-app.sh 1                                 # uses the published default
 IMAGE=<user>/demo-shop:latest ./scripts/deploy-app.sh 1   # SQLite in-pod (creates `demo` ns)
 IMAGE=<user>/demo-shop:latest ./scripts/deploy-app.sh 2   # + Postgres
 IMAGE=<user>/demo-shop:latest ./scripts/deploy-app.sh 3   # + Redis
+```
 ```
 A **private** registry (ghcr packages are private by default) needs a pull secret
 the script can create for you:
