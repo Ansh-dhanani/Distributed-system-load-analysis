@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
-# One-command load test (runs k6 inside the cluster, against demo-shop).
+# One-command load test (runs k6 inside the cluster).
 #
-#   ./scripts/run-load.sh                        # default: apps/demo-shop/load/k6-realistic.js
+#   ./scripts/run-load.sh                        # demo-shop, k6-realistic.js
 #   ./scripts/run-load.sh load-test/k6-capacity.js
+#   TARGET_URL=http://php-apache.demo.svc.cluster.local \
+#     ./scripts/run-load.sh load-test/k6-capacity.js   # the PHP capacity study
 #   TRACE=true ./scripts/run-load.sh             # also export client spans to Jaeger
 #
 # VU level is baked into the script (RAMP_VU/HOLD_VU or the stages array).
@@ -14,25 +16,34 @@ NS=demo
 TIMEOUT="${TIMEOUT:-900s}"
 JOB_MANIFEST="$REPO_ROOT/load-test/k6-job.yaml"
 
-# Restore the (possibly TRACE-patched) Job manifest no matter how we exit.
-restore_job() {
-  if [[ -f "$JOB_MANIFEST.orig" ]]; then
-    mv -f "$JOB_MANIFEST.orig" "$JOB_MANIFEST"
-  fi
-}
-trap restore_job EXIT
+# Which service k6 should hit. The capacity script targets the php-apache study,
+# everything else targets demo-shop; override explicitly with TARGET_URL=...
+if [[ -z "${TARGET_URL:-}" ]]; then
+  case "$(basename "$SCRIPT")" in
+    k6-capacity.js) TARGET_URL="http://php-apache.demo.svc.cluster.local" ;;
+    *)              TARGET_URL="http://demo-shop.demo.svc.cluster.local" ;;
+  esac
+fi
+
+# Render the Job into a temp file: the tracked manifest is never modified, so a
+# crashed run can't leave the repo dirty.
+RENDERED="$(mktemp)"
+trap 'rm -f "$RENDERED"' EXIT
 
 echo "==> using script: $SCRIPT"
+echo "==> target:       $TARGET_URL"
+
+kubectl set env --local -f "$JOB_MANIFEST" \
+  TARGET_URL="$TARGET_URL" -o yaml > "$RENDERED"
 
 if [[ "${TRACE:-false}" == "true" ]]; then
   echo "==> enabling k6 -> Jaeger tracing"
-  cp -f "$JOB_MANIFEST" "$JOB_MANIFEST.orig"
   kubectl -n "$NS" set env deploy/demo-shop \
     OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger.demo.svc.cluster.local:4318
   # `set env` rolls the pods; wait so early traffic is actually instrumented.
   kubectl -n "$NS" rollout status deploy/demo-shop --timeout=120s || true
   python3 -c "import yaml" 2>/dev/null || { echo "need PyYAML for the OTLP patch"; exit 1; }
-  python3 - "$JOB_MANIFEST" <<'PY'
+  python3 - "$RENDERED" <<'PY'
 import sys, yaml
 p = sys.argv[1]
 d = yaml.safe_load(open(p))
@@ -43,7 +54,7 @@ c["args"] = [
     "/scripts/k6.js",
 ]
 yaml.safe_dump(d, open(p, "w"), sort_keys=False)
-print("    patched k6-job.yaml with k6 --traces-output=otel")
+print("    patched k6 Job with --traces-output=otel")
 PY
 fi
 
@@ -53,7 +64,7 @@ kubectl -n "$NS" create configmap k6-script --from-file=k6.js="$SCRIPT" \
 
 echo "==> running job"
 kubectl -n "$NS" delete job k6 --ignore-not-found --wait=true >/dev/null
-kubectl apply -f "$JOB_MANIFEST"
+kubectl apply -f "$RENDERED"
 kubectl -n "$NS" wait --for=condition=complete job/k6 --timeout="$TIMEOUT" || true
 
 echo "==> summary"

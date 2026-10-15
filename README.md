@@ -279,24 +279,29 @@ ansible-playbook -i inventory.yml site.yml --tags monitoring
 Full guide: [infra/REBUILD.md](infra/REBUILD.md).
 
 ### 2 · Build & deploy the app
+Use the **same** `IMAGE` value for build and deploy — the image is rendered at
+deploy time, so no manifest needs editing.
 ```bash
-DOCKERHUB_USERNAME=<user> DOCKERHUB_TOKEN=<pat> ./scripts/build-push.sh
+IMAGE=<user>/demo-shop:latest \
+  DOCKERHUB_USERNAME=<user> DOCKERHUB_TOKEN=<pat> ./scripts/build-push.sh
 
-# Phase 1 — SQLite in-pod (also creates the `demo` namespace)
-kubectl apply -f apps/demo-shop/k8s/deployment.yaml
-# Phase 2/3 — Postgres, then + Redis
-kubectl apply -f apps/demo-shop/phases/phase2-postgres.yaml
-kubectl apply -f apps/demo-shop/phases/phase3-cache.yaml
+IMAGE=<user>/demo-shop:latest ./scripts/deploy-app.sh 1   # SQLite in-pod (creates `demo` ns)
+IMAGE=<user>/demo-shop:latest ./scripts/deploy-app.sh 2   # + Postgres
+IMAGE=<user>/demo-shop:latest ./scripts/deploy-app.sh 3   # + Redis
 ```
-Verify: `kubectl -n demo port-forward svc/demo-shop 8080:80` → open
+`kubectl apply -f apps/demo-shop/k8s/deployment.yaml` still works if you keep the
+default image. Verify: `kubectl -n demo port-forward svc/demo-shop 8080:80` → open
 `http://localhost:8080` (UI) or `curl localhost:8080/health`.
 
 ### 3 · Generate load
 ```bash
 ./scripts/run-load.sh                 # app-level capacity, prints a summary
 TRACE=true ./scripts/run-load.sh      # + client→app→DB traces into Jaeger
+./scripts/run-load.sh load-test/k6-capacity.js   # the php-apache study (auto-targeted)
 ./scripts/db-bench.sh                 # DB-only sweep (rows × clients) via pgbench
 ```
+`run-load.sh` picks the target from the script (`k6-capacity.js` → `php-apache`,
+otherwise `demo-shop`); override with `TARGET_URL=http://...`.
 `run-load.sh` runs k6 **as an in-cluster Job** so the runner is never the
 bottleneck. Watch scaling live: `kubectl -n demo get hpa demo-shop --watch`.
 
@@ -383,7 +388,8 @@ Distributed-system-load-analysis/
 │   └── ansible/                  site.yml + playbooks 00/10/20/30
 │
 └── scripts/
-    ├── build-push.sh             build + push the demo-shop image
+    ├── build-push.sh             build + push the demo-shop image (IMAGE=...)
+    ├── deploy-app.sh             deploy a phase with the chosen IMAGE
     ├── run-load.sh               run k6 in-cluster (TRACE=true for Jaeger)
     ├── db-bench.sh               pgbench sweep across rows × clients
     └── destroy.sh                tear down EVERYTHING

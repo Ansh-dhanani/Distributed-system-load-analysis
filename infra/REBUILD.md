@@ -34,10 +34,14 @@ DOCKERHUB_USERNAME=anshdhanani DOCKERHUB_TOKEN=<pat> ./scripts/build-push.sh
 
 ## 5. Deploy the real app
 ```bash
-# Phase 1: SQLite in-pod (the manifest also creates the `demo` namespace)
-kubectl apply -f apps/demo-shop/k8s/deployment.yaml
+# Build+push once, then deploy any phase with the same IMAGE (no manifest edits):
+IMAGE=<user>/demo-shop:latest \
+  DOCKERHUB_USERNAME=<user> DOCKERHUB_TOKEN=<pat> ./scripts/build-push.sh
+
+IMAGE=<user>/demo-shop:latest ./scripts/deploy-app.sh 1   # Phase 1: SQLite in-pod
 # Phase 2/3: Postgres (+ Redis) — see apps/demo-shop/PHASE_COMMANDS.md
 ```
+`kubectl apply -f apps/demo-shop/k8s/deployment.yaml` also works with the default image.
 
 ## 6. Load test + observability
 ```bash
