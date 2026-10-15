@@ -27,7 +27,7 @@
       ignore_errors: true
     - name: Copy manifests
       ansible.builtin.copy:
-        src: "{{ playbook_dir }}/../../manifests/"
+        src: "{{ playbook_dir }}/../../../manifests/"
         dest: /home/ubuntu/manifests/
 
     - name: Ensure demo namespace

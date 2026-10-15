@@ -1,5 +1,5 @@
 ---
-- import_playbook: 00-common.yml
-- import_playbook: 10-cluster.yml
-- import_playbook: 20-addons.yml
-- import_playbook: 30-monitoring.yml
+- import_playbook: playbooks/00-common.yml
+- import_playbook: playbooks/10-cluster.yml
+- import_playbook: playbooks/20-addons.yml
+- import_playbook: playbooks/30-monitoring.yml

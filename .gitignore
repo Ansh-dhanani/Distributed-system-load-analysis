@@ -1,5 +1,6 @@
 # secrets / generated
 infra/ansible/keys/
+infra/ansible/inventory.yml
 *.pem
 *.key
 .env

@@ -16,7 +16,7 @@ variable "key_name" {
 variable "ami_id" {
   description = "Ubuntu 24.04 LTS AMI in ap-south-1 (update as needed)"
   type        = string
-  default     = "ami-0f5ee92e2d63afc18"
+  default     = "ami-065d2b03fb493085a"
 }
 
 variable "instance_type" {

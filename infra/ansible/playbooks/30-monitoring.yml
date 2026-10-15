@@ -12,7 +12,7 @@
       block:
         - name: Copy monitoring manifests
           ansible.builtin.copy:
-            src: "{{ playbook_dir }}/../../monitoring/"
+            src: "{{ playbook_dir }}/../../../monitoring/"
             dest: /home/ubuntu/monitoring/
             mode: '0644'
 
