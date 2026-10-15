@@ -22,6 +22,15 @@ ansible-playbook -i inventory.yml site.yml
 ```
 This installs: containerd, kubeadm/kubelet/kubectl v1.36, control plane +
 workers, Calico, metrics-server, and the original `manifests/` study workload.
+It also fetches a ready-to-use kubeconfig to the repo root:
+```bash
+export KUBECONFIG=$PWD/../../kubeconfig
+kubectl get nodes
+```
+The control plane's API cert is issued with the public IP as a SAN, and the
+kubeconfig's `server:` is rewritten to that public IP, so `kubectl` works from
+your machine — not just on the node. The security group exposes `:6443` (and SSH)
+to `var.allowed_ssh_cidr`; set it to your own IP instead of the `0.0.0.0/0` default.
 
 Re-running on **already-used nodes** (the guards normally make this a no-op)?
 Force a clean rebuild:

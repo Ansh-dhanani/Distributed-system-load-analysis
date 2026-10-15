@@ -282,8 +282,14 @@ cd ../ansible && cp inventory.example.yml inventory.yml    # set the 3 IPs
 ansible-playbook -i inventory.yml site.yml                 # kubeadm + Calico + metrics
 # optional: add monitoring
 ansible-playbook -i inventory.yml site.yml --tags monitoring
+
+export KUBECONFIG=$PWD/../../kubeconfig                    # ansible fetches this for you
+kubectl get nodes                                          # should list 3 Ready nodes
 ```
 Full guide: [infra/REBUILD.md](infra/REBUILD.md).
+> The kubeconfig points at the control plane's **public** IP on `:6443`, which the
+> security group opens to `allowed_ssh_cidr` (default `0.0.0.0/0`). Set that to
+> your own IP before applying so the API and SSH aren't world-open.
 
 ### 3 · Build & deploy the app
 `build-push.sh` works with **any** registry (derived from `IMAGE`) and

@@ -1,6 +1,7 @@
 # secrets / generated
 infra/ansible/keys/
 infra/ansible/inventory.yml
+kubeconfig
 *.pem
 *.key
 .env
