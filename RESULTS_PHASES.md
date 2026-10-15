@@ -35,7 +35,8 @@ Expect: RPS flat as VUs rise, p95 climbs, first errors ~20 VUs.
 |---|---|
 | Apply | `kubectl apply -f apps/demo-shop/k8s/deployment.yaml` (HPA included, min 2) |
 | VUs | 10 / 30 / 60 |
-| Measured baseline for reference | ~12.5 RPS @30 VU, p95 2.3s, 0.4% errors (hpa-example study) |
+| Actual config | HPA **min 2**, max 6 — not 1→6 in practice |
+| ⚠️ Not from this experiment | ~12.5 RPS @30 VU, p95 2.3 s, 0.4 % errors are **Experiment A** (`hpa-example`) figures from `results/results.md` — unrelated to the demo-shop numbers below |
 
 **Why it helps:** each pod is capped at 500m, so 6 pods give ~6× the CPU ceiling
 without exceeding the ~3600m allocatable on 2× t3.small.
@@ -53,7 +54,10 @@ source of p95 outliers early in the run.
 
 **Why:** SQLite is per-pod + single-writer; with 2–6 replicas each pod sees a
 *different* database, so carts/checkouts are inconsistent and writes serialize.
-**Cost/tradeoff:** network hop (~0.2–1ms) + Postgres competes for the same node CPU.
+**Cost/tradeoff:** a network round-trip and a connection acquisition that the
+measurements cannot yet separate. Do **not** quote a hop figure: the measured
+`products_list` p99 of 152 ms bundles query execution, connection acquisition
+and contention, and no span-level breakdown exists yet (see tracing note).
 **Expected:** write-heavy endpoints improve correctness and p99 DB time; raw RPS may
 dip slightly versus in-pod SQLite until connections are pooled.
 
@@ -96,7 +100,34 @@ failure is the lesson.
 
 ---
 
-## Results table (fill in per run)
+---
+
+# ⚠️ Two separate experiments — do not merge these numbers
+
+This repository contains **two independent benchmarks** run against **two
+different applications on the same cluster**. They answer different questions
+and their results are **not comparable**, and must not be combined into a single
+performance claim.
+
+| | **Experiment A — HPA study workload** | **Experiment B — demo-shop (this project's app)** |
+|---|---|---|
+| App | `registry.k8s.io/hpa-example` | real FastAPI "demo-shop" (`apps/demo-shop`) |
+| Workload character | **burns CPU on every request by design** (k8s HPA walkthrough image) | mixed read/write: 3 GETs + 2 POSTs per iteration, `sleep()` simulated work |
+| Data tier | none (stateless) | SQLite → PostgreSQL → +Redis |
+| Documented results | [`results/results.md`](results/results.md) | **the table below** |
+| Headline numbers | 3.72 / 12.52 / 8.82 / 14.20 RPS; regression 12.52 → 8.72 | 16.69 / 53.49 / 16.23 / 15.85 RPS |
+| Answers | "does HPA help a **CPU-saturated** pod?" | "what happens to a **real multi-tier app** as tiers are added?" |
+
+**Why they cannot be pooled:** Experiment A is CPU-bound at ~250 ms CPU per
+request, so its ceiling is set by node CPU. Experiment B is **latency-bound**
+(`sleep()` + DB/cache hops), so it runs ~4× the RPS on the same hardware while
+using far less CPU. Any sentence that mixes the two (e.g. "12.5 RPS on this
+project") is wrong. The "Phase 5" narrative below is Experiment A's finding;
+Experiment B's Phase 5 did **not** reproduce it (see the last table row).
+
+---
+
+## Results table (Experiment B — demo-shop, fill in per run)
 
 | Phase | VUs | RPS | p50 | p95 | p99 | Errors % | Replicas | p99 DB (ms) | Cache hit % | Notes |
 |---|---|---|---|---|---|---|---|---|---|---|
@@ -105,7 +136,7 @@ failure is the lesson.
 | 2 External DB Postgres | 20 (headline) | 16.23 | 105 | 289 | 478 | 0.00 | 5 | products_list 152 / checkout 148 | n/a | Selection push over network adds ~20ms p50; HPA now scales (5 pods at 20 VU — Postgres DB time lifted pod CPU threshold) |
 | 3 + Redis cache | 20 (headline) | 15.85 | 54 | 284 | 467 | 0.00 | 4 | product_get 50 / checkout 97 (list 25) | 97.8 | Cache makes p50 −48%, RPS ≈ flat; hit ratio 978/1000; p99 DB for /products collapsed; cart/checkout unchanged (no cache) |
 | 4 +monitoring | — | n/a | — | — | — | — | pods +prom,grafana,jaeger | — | — | Install succeeded (jaeger service port-names fixed). Overhead not isolated — monitor CPU is on the same workers; recommend tagging it out for headline runs |
-| 5 vertical 1000m×8 | 30 | 25.44 | 54 | 287 | n/a | 0.00 | 4/8 | — | — | Only 4 of 8 replicas materialized (CPU 10%/50% target unable to compute under load-cap), so the documented T3 regression did not reproduce in this run |
+| 5 vertical 1000m×8 | 30 | 25.44 | 54 | 287 | n/a | 0.00 | 4/8 | — | — | **Experiment A's 12.52→8.72 RPS regression did NOT reproduce here.** Only 4 of 8 replicas materialized (CPU 10% vs 50% target), so 8 pods × 1000m never existed. Report as a *non-reproduced* result, not evidence for or against the hpa-example finding |
 
 ## DB benchmark sweep (`scripts/db-bench.sh`, libpq-concurrent)
 
@@ -118,8 +149,16 @@ clients), 30 s each, all runs 0 % failed transactions.
 | 10000 | 28.1  | 149.1 | 323.8 |
 | 100000 | 131.2 | 679.2 | 1399.4 |
 
-Read: latency is client-bound at low data sizes, then data-size bound at 100 k
-rows (one ORDER BY + LIMIT still scans up to the page under the existing index).
+Read: latency is client-bound at low data sizes, then data-size bound at 100 k rows.
+
+**Caveats:** these are *average* transaction latencies — not p95/p99 — so they say
+nothing about tail behaviour. The explanation below is a **hypothesis, not a
+measurement**: it must be confirmed with `EXPLAIN (ANALYZE, BUFFERS)` and the
+actual index definition before being claimed as fact.
+
+**Hypothesis:** an `ORDER BY id ... LIMIT ... OFFSET` walks rows up to the
+offset before returning the page, so high offsets on a large table cost more;
+an appropriate index (or keyset pagination) may remove most of that work.
 
 ## Deep-dive per phase (tracing)
 ```bash
