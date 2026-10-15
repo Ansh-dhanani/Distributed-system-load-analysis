@@ -8,6 +8,7 @@ data:
     apiVersion: 1
     datasources:
       - name: Prometheus
+        uid: prometheus
         type: prometheus
         access: proxy
         url: http://prometheus.demo.svc.cluster.local:9090
@@ -22,24 +23,64 @@ data:
   shop.json: |
     {
       "title": "Demo Shop - capacity",
+      "uid": "demo-shop-capacity",
+      "tags": ["demo-shop", "capacity"],
+      "timezone": "browser",
       "schemaVersion": 39,
       "version": 1,
       "editable": true,
+      "refresh": "10s",
+      "time": { "from": "now-30m", "to": "now" },
       "panels": [
-        {"title": "RPS by pod", "type": "graph",
-         "targets": [{"expr": "sum by (pod) (rate(shop_requests_total[1m]))"}]},
-        {"title": "p95 latency (s)", "type": "graph",
-         "targets": [{"expr": "histogram_quantile(0.95, sum by (le) (rate(shop_request_latency_seconds_bucket[5m])))"}]},
-        {"title": "p99 DB query time (s)", "type": "graph",
-         "targets": [{"expr": "histogram_quantile(0.99, sum by (le,op) (rate(shop_db_query_seconds_bucket[5m])))"}]},
-        {"title": "Cache hit ratio", "type": "graph",
-         "targets": [{"expr": "sum(rate(shop_cache_events_total{result=\"hit\"}[5m])) / clamp_min(sum(rate(shop_cache_events_total[5m])),1)"}]},
-        {"title": "Errors/s", "type": "graph",
-         "targets": [{"expr": "sum(rate(shop_requests_total{status=~\"5..\"}[1m]))"}]}
+        {
+          "id": 1, "type": "timeseries", "title": "RPS by pod",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+          "fieldConfig": { "defaults": { "unit": "reqps" }, "overrides": [] },
+          "targets": [
+            { "refId": "A", "expr": "sum by (pod) (rate(shop_requests_total[1m]))", "legendFormat": "{{pod}}" }
+          ]
+        },
+        {
+          "id": 2, "type": "timeseries", "title": "p95 latency (s)",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+          "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+          "targets": [
+            { "refId": "A", "expr": "histogram_quantile(0.95, sum by (le) (rate(shop_request_latency_seconds_bucket[5m])))", "legendFormat": "p95" }
+          ]
+        },
+        {
+          "id": 3, "type": "timeseries", "title": "p99 DB query time (s)",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+          "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+          "targets": [
+            { "refId": "A", "expr": "histogram_quantile(0.99, sum by (le,op) (rate(shop_db_query_seconds_bucket[5m])))", "legendFormat": "{{op}}" }
+          ]
+        },
+        {
+          "id": 4, "type": "timeseries", "title": "Cache hit ratio",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+          "fieldConfig": { "defaults": { "unit": "percentunit", "min": 0, "max": 1 }, "overrides": [] },
+          "targets": [
+            { "refId": "A", "expr": "sum(rate(shop_cache_events_total{result=\"hit\"}[5m])) / clamp_min(sum(rate(shop_cache_events_total[5m])), 1)", "legendFormat": "hit ratio" }
+          ]
+        },
+        {
+          "id": 5, "type": "timeseries", "title": "Errors/s (5xx)",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
+          "fieldConfig": { "defaults": { "unit": "reqps" }, "overrides": [] },
+          "targets": [
+            { "refId": "A", "expr": "sum(rate(shop_requests_total{status=~\"5..\"}[1m]))", "legendFormat": "5xx" }
+          ]
+        }
       ]
     }
 ---
-# dashboard provider so the JSON below is actually auto-loaded by Grafana
+# dashboard provider so the JSON above is actually auto-loaded by Grafana
 apiVersion: v1
 kind: ConfigMap
 metadata:
