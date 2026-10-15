@@ -265,10 +265,17 @@ flowchart LR
     classDef default stroke:#57606a;
 ```
 
-### 0 · Prerequisites
+### 0 · Local check (no AWS needed)
+Prove the app works before touching any cloud infra:
+```bash
+./scripts/smoke-test.sh        # builds the image, exercises SQLite AND Postgres+Redis
+docker compose up --build      # or run the full local stack on http://localhost:8080
+```
+
+### 1 · Prerequisites
 Terraform, Ansible, `kubectl`, Docker, Python 3 (for the tracing patch), AWS creds.
 
-### 1 · Rebuild the lab
+### 2 · Rebuild the lab
 ```bash
 cd infra/terraform && terraform init && terraform apply   # prints node IPs
 cd ../ansible && cp inventory.example.yml inventory.yml    # set the 3 IPs
@@ -278,7 +285,7 @@ ansible-playbook -i inventory.yml site.yml --tags monitoring
 ```
 Full guide: [infra/REBUILD.md](infra/REBUILD.md).
 
-### 2 · Build & deploy the app
+### 3 · Build & deploy the app
 `build-push.sh` works with **any** registry (derived from `IMAGE`) and
 `deploy-app.sh` renders that image into the manifests, so nothing is hardcoded.
 ```bash
@@ -304,7 +311,7 @@ IMAGE=ghcr.io/<owner>/demo-shop:latest \
 default image. Verify: `kubectl -n demo port-forward svc/demo-shop 8080:80` → open
 `http://localhost:8080` (UI) or `curl localhost:8080/health`.
 
-### 3 · Generate load
+### 4 · Generate load
 ```bash
 ./scripts/run-load.sh                 # app-level capacity, prints a summary
 TRACE=true ./scripts/run-load.sh      # + client→app→DB traces into Jaeger
@@ -316,14 +323,14 @@ otherwise `demo-shop`); override with `TARGET_URL=http://...`.
 `run-load.sh` runs k6 **as an in-cluster Job** so the runner is never the
 bottleneck. Watch scaling live: `kubectl -n demo get hpa demo-shop --watch`.
 
-### 4 · Observe
+### 5 · Observe
 ```bash
 kubectl -n demo port-forward svc/grafana 3000:3000     # dashboard (admin/admin)
 kubectl -n demo port-forward svc/jaeger  16686:16686   # traces
 kubectl -n demo port-forward svc/prometheus 9090:9090  # raw PromQL
 ```
 
-### 5 · Destroy everything (no leftover charges)
+### 6 · Destroy everything (no leftover charges)
 ```bash
 ./scripts/destroy.sh   # namespaces + cluster-scoped RBAC + terraform destroy + local artefacts
 ```
@@ -375,6 +382,7 @@ Distributed-system-load-analysis/
 ├── CLUSTER.md                    infrastructure spec (nodes, versions, limits)
 ├── RESULTS_PHASES.md             phased ladder + results table to fill
 ├── SHOWCASE.md                   narrative version of the ladder
+├── docker-compose.yml            local stack (app + Postgres + Redis)
 │
 ├── apps/demo-shop/               ← the REAL app (FastAPI)
 │   ├── main.py                   API, metrics, JSON logs, optional OTLP tracing
@@ -401,6 +409,7 @@ Distributed-system-load-analysis/
 └── scripts/
     ├── build-push.sh             build + push the demo-shop image (IMAGE=...)
     ├── deploy-app.sh             deploy a phase with the chosen IMAGE
+    ├── smoke-test.sh             local end-to-end check (SQLite + Postgres/Redis)
     ├── run-load.sh               run k6 in-cluster (TRACE=true for Jaeger)
     ├── db-bench.sh               pgbench sweep across rows × clients
     └── destroy.sh                tear down EVERYTHING
