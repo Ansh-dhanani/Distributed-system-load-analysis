@@ -106,7 +106,6 @@ failure is the lesson.
 | 3 + Redis cache | 20 (headline) | 15.85 | 54 | 284 | 467 | 0.00 | 4 | product_get 50 / checkout 97 (list 25) | 97.8 | Cache makes p50 −48%, RPS ≈ flat; hit ratio 978/1000; p99 DB for /products collapsed; cart/checkout unchanged (no cache) |
 | 4 +monitoring | — | n/a | — | — | — | — | pods +prom,grafana,jaeger | — | — | Install succeeded (jaeger service port-names fixed). Overhead not isolated — monitor CPU is on the same workers; recommend tagging it out for headline runs |
 | 5 vertical 1000m×8 | 30 | 25.44 | 54 | 287 | n/a | 0.00 | 4/8 | — | — | Only 4 of 8 replicas materialized (CPU 10%/50% target unable to compute under load-cap), so the documented T3 regression did not reproduce in this run |
-"
 
 ## DB benchmark sweep (`scripts/db-bench.sh`, libpq-concurrent)
 
