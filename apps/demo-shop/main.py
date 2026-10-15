@@ -79,7 +79,9 @@ if PG:
     from psycopg.rows import dict_row
 
     def db():
-        return psycopg.connect(DATABASE_URL, row_factory=dict_row)
+        # connect_timeout so a not-yet-ready Postgres fails fast (and can be
+        # retried) instead of hanging the worker indefinitely.
+        return psycopg.connect(DATABASE_URL, row_factory=dict_row, connect_timeout=5)
 
     P = "%s"
 else:
@@ -204,7 +206,20 @@ def init():
 
 @app.on_event("startup")
 def startup():
-    init()
+    # The DB (Postgres/Redis) may still be starting when we boot — retry instead
+    # of exiting, so a pod/container waits for its dependency rather than
+    # CrashLooping. SQLite always succeeds on the first attempt.
+    attempts = int(os.getenv("DB_INIT_RETRIES", "30"))
+    delay = float(os.getenv("DB_INIT_DELAY", "2"))
+    for attempt in range(1, attempts + 1):
+        try:
+            init()
+            break
+        except Exception as e:  # noqa: BLE001 - surface any backend error
+            if attempt == attempts:
+                raise
+            log_event(event="db_init_retry", attempt=attempt, error=str(e))
+            time.sleep(delay)
     log_event(event="startup", db="postgres" if PG else "sqlite", cache=bool(r),
               seed=SEED, tracing=bool(TRACER), pod=os.getenv("HOSTNAME"))
 
