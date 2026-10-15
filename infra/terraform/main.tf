@@ -4,7 +4,7 @@ resource "aws_vpc" "main" {
   cidr_block           = "10.0.0.0/16"
   enable_dns_hostnames = true
   enable_dns_support   = true
-  tags = { Name = "k8s-aws-lab-vpc" }
+  tags                 = { Name = "k8s-aws-lab-vpc" }
 }
 
 resource "aws_internet_gateway" "igw" {
@@ -16,7 +16,7 @@ resource "aws_subnet" "public" {
   cidr_block              = "10.0.1.0/24"
   availability_zone       = var.az
   map_public_ip_on_launch = true
-  tags = { Name = "k8s-aws-lab-public" }
+  tags                    = { Name = "k8s-aws-lab-public" }
 }
 
 resource "aws_route_table" "public" {
@@ -85,11 +85,11 @@ resource "local_sensitive_file" "private_key" {
 }
 
 resource "aws_instance" "control_plane" {
-  ami                         = var.ami_id
+  ami                         = local.ami_id
   instance_type               = var.instance_type
-  subnet_id                  = aws_subnet.public.id
-  vpc_security_group_ids     = [aws_security_group.nodes.id]
-  key_name                   = aws_key_pair.lab.key_name
+  subnet_id                   = aws_subnet.public.id
+  vpc_security_group_ids      = [aws_security_group.nodes.id]
+  key_name                    = aws_key_pair.lab.key_name
   associate_public_ip_address = true
 
   # Match the documented study conditions (CLUSTER.md): standard credits so the
@@ -108,11 +108,11 @@ resource "aws_instance" "control_plane" {
 
 resource "aws_instance" "worker" {
   count                       = var.worker_count
-  ami                         = var.ami_id
+  ami                         = local.ami_id
   instance_type               = var.instance_type
-  subnet_id                  = aws_subnet.public.id
-  vpc_security_group_ids     = [aws_security_group.nodes.id]
-  key_name                   = aws_key_pair.lab.key_name
+  subnet_id                   = aws_subnet.public.id
+  vpc_security_group_ids      = [aws_security_group.nodes.id]
+  key_name                    = aws_key_pair.lab.key_name
   associate_public_ip_address = true
 
   # Match the documented study conditions (CLUSTER.md): standard credits so the

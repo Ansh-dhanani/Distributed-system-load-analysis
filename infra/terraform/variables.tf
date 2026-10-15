@@ -14,9 +14,9 @@ variable "key_name" {
 }
 
 variable "ami_id" {
-  description = "Ubuntu 24.04 LTS AMI in ap-south-1 (update as needed)"
+  description = "AMI id. Leave empty to auto-select the latest Ubuntu 24.04 LTS amd64 image in var.region."
   type        = string
-  default     = "ami-065d2b03fb493085a"
+  default     = ""
 }
 
 variable "instance_type" {

@@ -6,6 +6,8 @@ cd infra/terraform
 terraform init
 terraform apply          # prints control-plane + worker IPs
 ```
+The AMI is looked up automatically (latest Ubuntu 24.04 amd64). Pin a specific
+image with `terraform apply -var ami_id=ami-xxxxxxxx`.
 
 ## 2. Inventory
 ```bash
@@ -20,6 +22,12 @@ ansible-playbook -i inventory.yml site.yml
 ```
 This installs: containerd, kubeadm/kubelet/kubectl v1.36, control plane +
 workers, Calico, metrics-server, and the original `manifests/` study workload.
+
+Re-running on **already-used nodes** (the guards normally make this a no-op)?
+Force a clean rebuild:
+```bash
+ansible-playbook -i inventory.yml site.yml -e reset_cluster=true   # runs kubeadm reset + cleans state
+```
 
 Optional monitoring (Prometheus + Grafana + Jaeger):
 ```bash
