@@ -7,7 +7,11 @@
 #     ./scripts/run-load.sh load-test/k6-capacity.js   # the PHP capacity study
 #   TRACE=true ./scripts/run-load.sh             # also export client spans to Jaeger
 #
-# VU level is baked into the script (RAMP_VU/HOLD_VU or the stages array).
+# VUs are env-driven via k6's __ENV and forwarded into the Job: override them
+# per run to build a ladder without editing files, e.g.
+#   VUS=5 ./scripts/run-load.sh
+#   VUS=30 HOLD=2m ./scripts/run-load.sh
+#   VUS=30 RAMP=1m    HOLD=3m ./scripts/run-load.sh load-test/k6-capacity.js
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -33,8 +37,15 @@ trap 'rm -f "$RENDERED"' EXIT
 echo "==> using script: $SCRIPT"
 echo "==> target:       $TARGET_URL"
 
+# VU ladder knobs are env-driven and forwarded into the k6 job, so they can be
+# set without editing the script:  VUS=30 HOLD=3m ./scripts/run-load.sh
+ENV_ARGS=(TARGET_URL="$TARGET_URL")
+[[ -n "${VUS:-}" ]]  && ENV_ARGS+=(VUS="$VUS")
+[[ -n "${RAMP:-}" ]] && ENV_ARGS+=(RAMP="$RAMP")
+[[ -n "${HOLD:-}" ]] && ENV_ARGS+=(HOLD="$HOLD")
+
 kubectl set env --local -f "$JOB_MANIFEST" \
-  TARGET_URL="$TARGET_URL" -o yaml > "$RENDERED"
+  "${ENV_ARGS[@]}" -o yaml > "$RENDERED"
 
 if [[ "${TRACE:-false}" == "true" ]]; then
   echo "==> enabling k6 -> Jaeger tracing"

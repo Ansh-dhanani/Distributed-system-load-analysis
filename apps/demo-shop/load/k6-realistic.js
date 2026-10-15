@@ -2,10 +2,18 @@ import http from 'k6/http';
 import { check, sleep } from 'k6';
 
 const BASE = __ENV.TARGET_URL || 'http://demo-shop.demo.svc.cluster.local';
+
+// Load profile is env-driven so a VU ladder needs no file edits:
+//   VUS=10 ./scripts/run-load.sh
+//   VUS=30 HOLD=3m ./scripts/run-load.sh
+const VUS = Number(__ENV.VUS || 20);
+const RAMP = __ENV.RAMP || '1m';
+const HOLD = __ENV.HOLD || '2m';
+
 export const options = {
   stages: [
-    { duration: '1m', target: 20 },
-    { duration: '2m', target: 20 },
+    { duration: RAMP, target: VUS },
+    { duration: HOLD, target: VUS },
     { duration: '1m', target: 0 },
   ],
 };

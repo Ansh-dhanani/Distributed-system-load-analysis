@@ -6,6 +6,7 @@ stay identical so the deltas are attributable.
 Run any phase with:
 ```bash
 ./scripts/run-load.sh            # defaults to apps/demo-shop/load/k6-realistic.js
+# VU level is env-driven (no file edits):  VUS=10 ./scripts/run-load.sh
 ```
 
 Record for each phase: RPS, p50/p95/p99, error %, replicas, CPU/mem, **p99 DB
