@@ -279,15 +279,26 @@ ansible-playbook -i inventory.yml site.yml --tags monitoring
 Full guide: [infra/REBUILD.md](infra/REBUILD.md).
 
 ### 2 · Build & deploy the app
-Use the **same** `IMAGE` value for build and deploy — the image is rendered at
-deploy time, so no manifest needs editing.
+`build-push.sh` works with **any** registry (derived from `IMAGE`) and
+`deploy-app.sh` renders that image into the manifests, so nothing is hardcoded.
 ```bash
+# Docker Hub (public repo)
 IMAGE=<user>/demo-shop:latest \
   DOCKERHUB_USERNAME=<user> DOCKERHUB_TOKEN=<pat> ./scripts/build-push.sh
+
+# ...or GitHub Container Registry (username defaults to the image owner)
+IMAGE=ghcr.io/<owner>/demo-shop:latest \
+  GHCR_TOKEN=<pat-with-write:packages> ./scripts/build-push.sh
 
 IMAGE=<user>/demo-shop:latest ./scripts/deploy-app.sh 1   # SQLite in-pod (creates `demo` ns)
 IMAGE=<user>/demo-shop:latest ./scripts/deploy-app.sh 2   # + Postgres
 IMAGE=<user>/demo-shop:latest ./scripts/deploy-app.sh 3   # + Redis
+```
+A **private** registry (ghcr packages are private by default) needs a pull secret
+the script can create for you:
+```bash
+IMAGE=ghcr.io/<owner>/demo-shop:latest \
+  PULL_SECRET_USER=<owner> PULL_SECRET_TOKEN=<pat> ./scripts/deploy-app.sh 3
 ```
 `kubectl apply -f apps/demo-shop/k8s/deployment.yaml` still works if you keep the
 default image. Verify: `kubectl -n demo port-forward svc/demo-shop 8080:80` → open

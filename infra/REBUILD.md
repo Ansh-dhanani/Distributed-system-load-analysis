@@ -29,17 +29,20 @@ ansible-playbook -i inventory.yml site.yml --tags monitoring
 ## 4. App image
 ```bash
 cd ../..
-DOCKERHUB_USERNAME=anshdhanani DOCKERHUB_TOKEN=<pat> ./scripts/build-push.sh
+# Docker Hub, GHCR, or any registry — build-push.sh derives it from IMAGE.
+IMAGE=<user>/demo-shop:latest \
+  DOCKERHUB_USERNAME=<user> DOCKERHUB_TOKEN=<pat> ./scripts/build-push.sh
 ```
 
 ## 5. Deploy the real app
 ```bash
 # Build+push once, then deploy any phase with the same IMAGE (no manifest edits):
-IMAGE=<user>/demo-shop:latest \
-  DOCKERHUB_USERNAME=<user> DOCKERHUB_TOKEN=<pat> ./scripts/build-push.sh
-
 IMAGE=<user>/demo-shop:latest ./scripts/deploy-app.sh 1   # Phase 1: SQLite in-pod
 # Phase 2/3: Postgres (+ Redis) — see apps/demo-shop/PHASE_COMMANDS.md
+
+# Private registry (e.g. a private ghcr package): let deploy-app.sh add the pull secret
+IMAGE=ghcr.io/<owner>/demo-shop:latest \
+  PULL_SECRET_USER=<owner> PULL_SECRET_TOKEN=<pat> ./scripts/deploy-app.sh 3
 ```
 `kubectl apply -f apps/demo-shop/k8s/deployment.yaml` also works with the default image.
 

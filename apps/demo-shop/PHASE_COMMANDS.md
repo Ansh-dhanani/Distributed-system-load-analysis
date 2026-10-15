@@ -3,11 +3,21 @@
 Only the data tier changes between phases — infra, HPA, and the k6 script stay identical
 so the numbers are comparable.
 
-The app image is **not hardcoded** in the manifests any more: `scripts/deploy-app.sh`
-renders it from the `IMAGE` variable, so you build+push **one** image and point at it.
+The app image is **not hardcoded** in the manifests any more: `scripts/build-push.sh`
+pushes to whatever registry `IMAGE` names (Docker Hub, GHCR, …) and
+`scripts/deploy-app.sh` renders that image in, so you build+push **one** image and
+point at it.
 
 ```bash
 IMAGE=myuser/demo-shop:v2 ./scripts/deploy-app.sh <phase>
+```
+
+Private registry?
+```bash
+# ghcr packages are private by default — create the pull secret in one flag:
+IMAGE=ghcr.io/myuser/demo-shop:v2 \
+  PULL_SECRET_USER=myuser PULL_SECRET_TOKEN=<pat> ./scripts/deploy-app.sh 3
+# (or make the package public and omit the PULL_SECRET_* vars)
 ```
 
 ## Phase 1 — SQLite inside the pod
