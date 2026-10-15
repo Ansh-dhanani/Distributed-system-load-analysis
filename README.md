@@ -90,7 +90,7 @@ flowchart TB
 
             SVC["Service: demo-shop :80"]
 
-            subgraph APPS["Deployment: demo-shop — HPA 2→6 @ 50% CPU"]
+            subgraph APPS["demo-shop · HPA 2→6"]
                 A1["pod demo-shop<br/>FastAPI :80"]
                 A2["pod demo-shop<br/>FastAPI :80"]
             end
@@ -98,7 +98,7 @@ flowchart TB
             PG[("Postgres<br/>StatefulSet")]
             RD[("Redis<br/>Deployment<br/>128 MB LRU")]
 
-            subgraph OBS["monitoring (optional: --tags monitoring)"]
+            subgraph OBS["monitoring · optional"]
                 PROM["Prometheus :9090"]
                 GRAF["Grafana :3000"]
                 JAEG["Jaeger :16686 / OTLP :4318"]
