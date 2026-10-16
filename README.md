@@ -117,6 +117,38 @@ flowchart TB
     classDef default stroke:#57606a;
 ```
 
+**Simple setup** (no Postgres, no Redis, lightweight monitoring):
+
+```mermaid
+flowchart TB
+    subgraph LAB["kubeadm cluster · 1 control-plane + 2 workers · t3.small · ap-south-1a"]
+        direction TB
+
+        subgraph NS["namespace: demo"]
+            K6["k6 Job<br/>in-cluster load generator"]
+
+            SVC["Service: demo-shop :80"]
+
+            subgraph APPS["demo-shop · HPA 2→6"]
+                A1["pod demo-shop<br/>FastAPI :80<br/><i>SQLite in-pod</i>"]
+                A2["pod demo-shop<br/>FastAPI :80<br/><i>SQLite in-pod</i>"]
+            end
+
+            subgraph OBS["monitoring · optional"]
+                PROM["Prometheus :9090"]
+                GRAF["Grafana :3000"]
+            end
+        end
+    end
+
+    K6 -->|"HTTP"| SVC
+    SVC --> A1
+    SVC --> A2
+    PROM -.->|"scrape /metrics"| A1
+    GRAF -.->|"datasource"| PROM
+    classDef default stroke:#57606a;
+```
+
 Whole-node picture: [CLUSTER.md](CLUSTER.md) · Terraform: `infra/terraform/`.
 
 ---
