@@ -18,8 +18,7 @@ spec:
           args: ["run", "/scripts/k6.js"]
           env:
             # Default target (demo-shop). scripts/run-load.sh overrides this per
-            # run (it picks php-apache for load-test/k6-capacity.js, and accepts
-            # TARGET_URL=http://php-apache.demo.svc.cluster.local to force it).
+            # run via TARGET_URL.
             - name: TARGET_URL
               value: "http://demo-shop.demo.svc.cluster.local"
           resources:

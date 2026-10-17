@@ -21,7 +21,7 @@ cp inventory.example.yml inventory.yml
 ansible-playbook -i inventory.yml site.yml
 ```
 This installs: containerd, kubeadm/kubelet/kubectl v1.36, control plane +
-workers, Calico, metrics-server, and the original `manifests/` study workload.
+workers, Calico, metrics-server, and the `demo` namespace.
 It also fetches a ready-to-use kubeconfig to the repo root:
 ```bash
 export KUBECONFIG=$PWD/../../kubeconfig

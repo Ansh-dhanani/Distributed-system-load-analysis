@@ -1,0 +1,63 @@
+{
+  "title": "Demo Shop — App Metrics",
+  "uid": "demo-shop-app",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "5s",
+  "time": {"from": "now-1h", "to": "now"},
+  "panels": [
+    {
+      "id": 1, "title": "Request Rate (RPS)", "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+      "targets": [{"expr": "rate(shop_request_latency_seconds_count[1m])", "legendFormat": "{{endpoint}}"}]
+    },
+    {
+      "id": 2, "title": "Request Latency p95", "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+      "targets": [{"expr": "histogram_quantile(0.95, rate(shop_request_latency_seconds_bucket[1m]))", "legendFormat": "{{endpoint}}"}]
+    },
+    {
+      "id": 3, "title": "Request Latency p50", "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+      "targets": [{"expr": "histogram_quantile(0.50, rate(shop_request_latency_seconds_bucket[1m]))", "legendFormat": "{{endpoint}}"}]
+    },
+    {
+      "id": 4, "title": "Error Rate", "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+      "targets": [{"expr": "rate(shop_request_latency_seconds_count{status=~'5..'}[1m])", "legendFormat": "{{endpoint}}"}]
+    },
+    {
+      "id": 5, "title": "Cache Hit Ratio", "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 16},
+      "targets": [{"expr": "rate(shop_cache_events_total{result=\"hit\"}[1m]) / rate(shop_cache_events_total[1m])", "legendFormat": "hit ratio"}]
+    },
+    {
+      "id": 6, "title": "Cache Hits vs Misses", "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 16},
+      "targets": [
+        {"expr": "rate(shop_cache_events_total{result=\"hit\"}[1m])", "legendFormat": "hits"},
+        {"expr": "rate(shop_cache_events_total{result=\"miss\"}[1m])", "legendFormat": "misses"}
+      ]
+    },
+    {
+      "id": 7, "title": "DB Query Time p95", "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 24},
+      "targets": [{"expr": "histogram_quantile(0.95, rate(shop_db_query_seconds_bucket[1m]))", "legendFormat": "{{op}}"}]
+    },
+    {
+      "id": 8, "title": "DB Query Time p50", "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 24},
+      "targets": [{"expr": "histogram_quantile(0.50, rate(shop_db_query_seconds_bucket[1m]))", "legendFormat": "{{op}}"}]
+    },
+    {
+      "id": 9, "title": "Pod Count", "type": "stat",
+      "gridPos": {"h": 6, "w": 6, "x": 0, "y": 32},
+      "targets": [{"expr": "count(kube_pod_status_phase{namespace=\"demo\",phase=\"Running\"})"}]
+    },
+    {
+      "id": 10, "title": "HPA Replicas", "type": "timeseries",
+      "gridPos": {"h": 6, "w": 18, "x": 6, "y": 32},
+      "targets": [{"expr": "kube_horizontalpodautoscaler_status_current_replicas{namespace=\"demo\"}", "legendFormat": "{{horizontalpodautoscaler}}"}]
+    }
+  ]
+}

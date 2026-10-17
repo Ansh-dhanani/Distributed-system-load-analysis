@@ -2,16 +2,13 @@
 # One-command load test (runs k6 inside the cluster).
 #
 #   ./scripts/run-load.sh                        # demo-shop, k6-realistic.js
-#   ./scripts/run-load.sh load-test/k6-capacity.js
-#   TARGET_URL=http://php-apache.demo.svc.cluster.local \
-#     ./scripts/run-load.sh load-test/k6-capacity.js   # the PHP capacity study
+#   TARGET_URL=http://... ./scripts/run-load.sh   # override the target URL
 #   TRACE=true ./scripts/run-load.sh             # also export client spans to Jaeger
 #
 # VUs are env-driven via k6's __ENV and forwarded into the Job: override them
 # per run to build a ladder without editing files, e.g.
 #   VUS=5 ./scripts/run-load.sh
 #   VUS=30 HOLD=2m ./scripts/run-load.sh
-#   VUS=30 RAMP=1m    HOLD=3m ./scripts/run-load.sh load-test/k6-capacity.js
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -20,13 +17,9 @@ NS=demo
 TIMEOUT="${TIMEOUT:-900s}"
 JOB_MANIFEST="$REPO_ROOT/load-test/k6-job.yaml"
 
-# Which service k6 should hit. The capacity script targets the php-apache study,
-# everything else targets demo-shop; override explicitly with TARGET_URL=...
+# Target service. Override explicitly with TARGET_URL=...
 if [[ -z "${TARGET_URL:-}" ]]; then
-  case "$(basename "$SCRIPT")" in
-    k6-capacity.js) TARGET_URL="http://php-apache.demo.svc.cluster.local" ;;
-    *)              TARGET_URL="http://demo-shop.demo.svc.cluster.local" ;;
-  esac
+  TARGET_URL="http://demo-shop.demo.svc.cluster.local"
 fi
 
 # Render the Job into a temp file: the tracked manifest is never modified, so a

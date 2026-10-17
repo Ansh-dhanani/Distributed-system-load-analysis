@@ -20,16 +20,15 @@ flowchart LR
 
 ## TL;DR
 
-> These headline numbers are from the **original PHP CPU-burner study**
-> (`results/results.md`). The FastAPI app in `apps/demo-shop/` is the platform
-> for the *phased* ladder in `RESULTS_PHASES.md`.
+> Headline numbers are from the **FastAPI demo-shop** live run
+> (`RESULTS_PHASES.md`). One small cluster, one change at a time.
 
-| Setup | Reliable throughput | Concurrent users* | p95 | Errors |
+| Phase | Reliable throughput | p50 | p95 | Errors |
 |---|---|---|---|---|
-| Single replica, no scaling | ~4 RPS | < 10 | 5–15 s | 26–33 % |
-| HPA 1→6 @ 50 % CPU (final) | **~12.5 RPS (~1 M req/day)** | **~70–100** | ~2.3 s | < 1 % |
-| Past the ceiling (80–150 VU) | **collapses** to 9–14 RPS | — | 13–19 s | 1–11 % |
-| Naive vertical scale (1000m × 8) | **regressed** to 8.7 RPS | — | 6.6 s | 4.4 % |
+| 0 · 1 pod, no HPA (SQLite) | ~16.69 RPS @20 VU | 83 ms | 272 ms | 0 % |
+| 1 · HPA 2→6 @ 50 % CPU | ~53.49 RPS @60 VU | 84 ms | 271 ms | 0 % |
+| 2 · + PostgreSQL | ~16.23 RPS @20 VU | 105 ms | 289 ms | 0 % |
+| 3 · + Redis cache | ~15.85 RPS @20 VU | 54 ms | 284 ms | 0 % |
 
 \* Real users with ~5–10 s think time: `users ≈ RPS × (response + think)`.
 
@@ -43,27 +42,19 @@ flowchart LR
 
 ---
 
-## Two workloads live here
+## What's in here
 
-This repo deliberately contains **two** apps so the measured study and the
-extensible lab don't get confused with each other.
-
-| | `manifests/` | `apps/demo-shop/` |
-|---|---|---|
-| What | `registry.k8s.io/hpa-example` (php-apache) | **real** FastAPI shop |
-| Purpose | the original capacity study | phased DB → cache → observability ladder |
-| Behaviour | burns CPU per request | products, cart, checkout; SQLite/Postgres + optional Redis |
-| Status | **measured** (numbers above) | framework in place — fill from your run |
+A single **real** FastAPI shop (`apps/demo-shop/`) exercised through a phased
+capacity ladder (SQLite → Postgres → Redis → observability), on one small
+Kubernetes cluster.
 
 ```mermaid
 flowchart TB
     ROOT(["Distributed-system-load-analysis"])
 
-    ROOT --> STUDY["manifests/ + load-test/ + results/<br/><b>PHP capacity study</b> · MEASURED"]
     ROOT --> LAB["apps/demo-shop/<br/><b>FastAPI shop</b> · PHASED LADDER"]
     ROOT --> OPS["infra/ + monitoring/ + scripts/<br/><b>rebuild · observe · teardown</b>"]
 
-    STUDY --> S1["deployment · service · hpa · pdb"]
     LAB --> L1["main.py · Dockerfile · requirements"]
     LAB --> L2["k8s/ + phases/ (SQLite→Postgres→Redis)"]
     LAB --> L3["bench/ (pgbench DB sweep)"]
@@ -358,13 +349,11 @@ default image. Verify: `kubectl -n demo port-forward svc/demo-shop 8080:80` → 
 ```bash
 ./scripts/run-load.sh                 # app-level capacity, prints a summary
 TRACE=true ./scripts/run-load.sh      # + client→app→DB traces into Jaeger
-./scripts/run-load.sh load-test/k6-capacity.js   # the php-apache study (auto-targeted)
 ./scripts/db-bench.sh                 # DB-only sweep (rows × clients) via pgbench
 ```
-`run-load.sh` picks the target from the script (`k6-capacity.js` → `php-apache`,
-otherwise `demo-shop`); override with `TARGET_URL=http://...`.
 `run-load.sh` runs k6 **as an in-cluster Job** so the runner is never the
 bottleneck. Watch scaling live: `kubectl -n demo get hpa demo-shop --watch`.
+`TARGET_URL=http://...` overrides the target.
 
 ### 5 · Observe
 ```bash
@@ -382,38 +371,10 @@ kubectl -n demo port-forward svc/prometheus 9090:9090  # raw PromQL
 
 ## Results
 
-<details>
-<summary><b>PHP capacity study — measured numbers (click to expand)</b></summary>
-
-**A. Unoptimized — HPA pinned to 1 replica**
-
-| VUs | RPS | p50 | p95 | max | Errors |
-|---|---|---|---|---|---|
-| 20 | 3.72 | 2.98 s | 5.50 s | 6.8 s | 25.97 % |
-| 50 | 3.95 | 6.57 s | 15.14 s | 18.07 s | 32.81 % |
-
-**B. Scalable — HPA 1→6**
-
-| VUs | RPS | p50 | p95 | max | Errors |
-|---|---|---|---|---|---|
-| 30 | **12.52** | 1.14 s | 2.31 s | 4.64 s | **0.39 %** |
-| 80 | 8.82 | 5.34 s | 18.88 s | 21.56 s | 0.74 % |
-| 150 | 14.20 | 5.05 s | 12.69 s | 48.50 s | 11.25 % |
-
-**C. Tuning experiment (reverted) — 1000m limits, 8 replicas**
-
-| VUs | RPS | p95 | Errors |
-|---|---|---|---|
-| 30 | 8.72 | 6.64 s | 4.43 % |
-
-8000m burst demand vs ~3600m allocatable on 2× t3.small → CPU contention +
-T3 credit burn. Reverted. Full data: [results/results.md](results/results.md).
-
-</details>
-
 For the **demo-shop** phases, record per run: RPS, p50/p95/p99, error %,
 replicas, CPU/mem, **p99 DB query time**, **cache hit ratio**, and a Jaeger trace
 id for the slowest request. Table to fill: [RESULTS_PHASES.md](RESULTS_PHASES.md).
+Measured numbers and analysis: [RESULTS_PHASES.md](RESULTS_PHASES.md).
 
 ---
 
@@ -438,11 +399,8 @@ Distributed-system-load-analysis/
 │   ├── DB_EVOLUTION.md · PHASE_COMMANDS.md
 │   └── OBSERVABILITY.md · TRACING.md
 │
-├── manifests/                    ← original PHP study workload
-│   └── namespace · deployment · service · hpa · pdb
-├── load-test/                    k6 capacity script + Job manifest
+├── load-test/                    k6 Job manifest
 ├── monitoring/                   prometheus.yaml · grafana.yaml · jaeger.yaml
-├── results/results.md            full measured numbers
 │
 ├── infra/
 │   ├── REBUILD.md
@@ -462,17 +420,15 @@ Distributed-system-load-analysis/
 
 ## Key findings
 
-1. **One pod caps around its CPU limit.** More users only queue — RPS stays flat
-   while p95 climbs. (`~4 RPS` at `500m`.)
-2. **HPA 1→6 triples goodput** to ~12.5 RPS at 30 VUs with 0.4 % errors — the
-   reliable operating envelope.
-3. **Past saturation the system collapses, not degrades.** At 80 VUs throughput
-   *fell* to 8.8 RPS; at 150 VUs errors hit 11 % with 48 s max latency.
-4. **Naive vertical scaling regressed.** 1000m × 8 pods *lowered* throughput
-   (12.5 → 8.7 RPS) — grow node capacity before pod limits.
-5. **The data tier is the next ceiling.** SQLite is per-pod and single-writer;
+1. **HPA scales the FastAPI app cleanly** — 2→6 pods take it from ~16.69 RPS
+   (1 pod) to ~53.49 RPS @60 VU with 0 % errors; p95 stays ~271 ms.
+2. **Postgres adds a network hop** but fixes correctness (per-pod SQLite was
+   inconsistent across replicas); p50 rises ~20 ms, RPS ~16.23 @20 VU.
+3. **Redis cache cuts p50 ~48 %** (105 → 54 ms) on `/products` with a 97.8 %
+   hit ratio; cart/checkout are unaffected (no cache).
+4. **The data tier is the ceiling.** SQLite is per-pod and single-writer;
    Postgres fixes correctness, Redis removes the read hotspot.
-6. **Reliability held**: 0 pod restarts, HPA scaled every run, monitoring never
+5. **Reliability held**: 0 pod restarts, HPA scaled every run, monitoring never
    dropped.
 
 ---
@@ -492,8 +448,8 @@ Distributed-system-load-analysis/
 ## Known limitations
 
 - Single AZ, single control-plane, no NAT/LB — a cheap lab, not production.
-- Only the original php-apache study (phases 0/1) has **measured** data; the
-  demo-shop phases 2–5 are a ready-to-run framework.
+- Demo-shop phases 0–3 have **measured** data; phases 4–5 are a ready-to-run
+  framework (see `RESULTS_PHASES.md`).
 - App opens **one DB connection per request** (no pool) — this is deliberate; it
   is the reason PgBouncer is the first Phase-2 recommendation.
 - k6 doesn't propagate trace context into requests by default (see caveat above).

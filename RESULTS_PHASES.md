@@ -36,7 +36,6 @@ Expect: RPS flat as VUs rise, p95 climbs, first errors ~20 VUs.
 | Apply | `kubectl apply -f apps/demo-shop/k8s/deployment.yaml` (HPA included, min 2) |
 | VUs | 10 / 30 / 60 |
 | Actual config | HPA **min 2**, max 6 — not 1→6 in practice |
-| ⚠️ Not from this experiment | ~12.5 RPS @30 VU, p95 2.3 s, 0.4 % errors are **Experiment A** (`hpa-example`) figures from `results/results.md` — unrelated to the demo-shop numbers below |
 
 **Why it helps:** each pod is capped at 500m, so 6 pods give ~6× the CPU ceiling
 without exceeding the ~3600m allocatable on 2× t3.small.
@@ -102,32 +101,7 @@ failure is the lesson.
 
 ---
 
-# ⚠️ Two separate experiments — do not merge these numbers
-
-This repository contains **two independent benchmarks** run against **two
-different applications on the same cluster**. They answer different questions
-and their results are **not comparable**, and must not be combined into a single
-performance claim.
-
-| | **Experiment A — HPA study workload** | **Experiment B — demo-shop (this project's app)** |
-|---|---|---|
-| App | `registry.k8s.io/hpa-example` | real FastAPI "demo-shop" (`apps/demo-shop`) |
-| Workload character | **burns CPU on every request by design** (k8s HPA walkthrough image) | mixed read/write: 3 GETs + 2 POSTs per iteration, `sleep()` simulated work |
-| Data tier | none (stateless) | SQLite → PostgreSQL → +Redis |
-| Documented results | [`results/results.md`](results/results.md) | **the table below** |
-| Headline numbers | 3.72 / 12.52 / 8.82 / 14.20 RPS; regression 12.52 → 8.72 | 16.69 / 53.49 / 16.23 / 15.85 RPS |
-| Answers | "does HPA help a **CPU-saturated** pod?" | "what happens to a **real multi-tier app** as tiers are added?" |
-
-**Why they cannot be pooled:** Experiment A is CPU-bound at ~250 ms CPU per
-request, so its ceiling is set by node CPU. Experiment B is **latency-bound**
-(`sleep()` + DB/cache hops), so it runs ~4× the RPS on the same hardware while
-using far less CPU. Any sentence that mixes the two (e.g. "12.5 RPS on this
-project") is wrong. The "Phase 5" narrative below is Experiment A's finding;
-Experiment B's Phase 5 did **not** reproduce it (see the last table row).
-
----
-
-## Results table (Experiment B — demo-shop, fill in per run)
+## Results table (demo-shop, fill in per run)
 
 | Phase | VUs | RPS | p50 | p95 | p99 | Errors % | Replicas | p99 DB (ms) | Cache hit % | Notes |
 |---|---|---|---|---|---|---|---|---|---|---|
@@ -136,7 +110,7 @@ Experiment B's Phase 5 did **not** reproduce it (see the last table row).
 | 2 External DB Postgres | 20 (headline) | 16.23 | 105 | 289 | 478 | 0.00 | 5 | products_list 152 / checkout 148 | n/a | Selection push over network adds ~20ms p50; HPA now scales (5 pods at 20 VU — Postgres DB time lifted pod CPU threshold) |
 | 3 + Redis cache | 20 (headline) | 15.85 | 54 | 284 | 467 | 0.00 | 4 | product_get 50 / checkout 97 (list 25) | 97.8 | Cache makes p50 −48%, RPS ≈ flat; hit ratio 978/1000; p99 DB for /products collapsed; cart/checkout unchanged (no cache) |
 | 4 +monitoring | — | n/a | — | — | — | — | pods +prom,grafana,jaeger | — | — | Install succeeded (jaeger service port-names fixed). Overhead not isolated — monitor CPU is on the same workers; recommend tagging it out for headline runs |
-| 5 vertical 1000m×8 | 30 | 25.44 | 54 | 287 | n/a | 0.00 | 4/8 | — | — | **Experiment A's 12.52→8.72 RPS regression did NOT reproduce here.** Only 4 of 8 replicas materialized (CPU 10% vs 50% target), so 8 pods × 1000m never existed. Report as a *non-reproduced* result, not evidence for or against the hpa-example finding |
+| 5 vertical 1000m×8 | 30 | 25.44 | 54 | 287 | n/a | 0.00 | 4/8 | — | — | Only 4 of 8 replicas materialized (CPU 10% vs 50% target), so 8 pods × 1000m never existed. Vertical scaling did not reproduce a regression here. |
 
 ## DB benchmark sweep (`scripts/db-bench.sh`, libpq-concurrent)
 

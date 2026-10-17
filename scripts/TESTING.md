@@ -27,14 +27,7 @@ STEP=20 ./scripts/test-suite.sh ladder  # custom step size
 VU=50 HOLD=3m ./scripts/test-suite.sh single
 ```
 
-### 3. Capacity study — php-apache workload
-
-```bash
-./scripts/test-suite.sh capacity
-HOLD_SCALE=5000 ./scripts/test-suite.sh capacity
-```
-
-### 4. DB benchmark — pgbench sweep (Postgres + Redis)
+### 3. DB benchmark — pgbench sweep (Postgres + Redis)
 
 ```bash
 ./scripts/test-suite.sh db
@@ -95,7 +88,6 @@ VUS=40 ./scripts/test-suite.sh hpa
 | `SCALES` | `1000 10000 100000` | db | pgbench row counts |
 | `CLIENTS` | `10 50 100` | db | pgbench concurrency |
 | `DURATION` | 60 | db | Seconds per pgbench step |
-| `HOLD_SCALE` | 1000 | capacity | Capacity study scale factor |
 | `DRY_RUN` | false | all | Print commands, don't execute |
 | `REPORT_DIR` | `./results` | report | Where to save logs |
 

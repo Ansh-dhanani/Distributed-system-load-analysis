@@ -25,18 +25,6 @@
       ansible.builtin.command: kubectl wait --for=condition=Available apiservice/v1beta1.metrics.k8s.io --timeout=180s
       changed_when: false
       ignore_errors: true
-    - name: Copy manifests
-      ansible.builtin.copy:
-        src: "{{ playbook_dir }}/../../../manifests/"
-        dest: /home/ubuntu/manifests/
-
     - name: Ensure demo namespace
-      ansible.builtin.command: kubectl apply -f /home/ubuntu/manifests/namespace.yaml
+      ansible.builtin.command: kubectl create namespace demo --dry-run=client -o yaml | kubectl apply -f -
       changed_when: false
-
-    # Original study workload (php-apache). Skip it when benchmarking
-    # apps/demo-shop only:  ansible-playbook ... --skip-tags study-workload
-    - name: Apply app manifests
-      ansible.builtin.command: kubectl apply -f /home/ubuntu/manifests/
-      changed_when: false
-      tags: study-workload
