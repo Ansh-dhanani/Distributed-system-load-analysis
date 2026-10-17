@@ -400,6 +400,7 @@ Distributed-system-load-analysis/
 │
 ├── load-test/                    k6 Job manifest
 ├── monitoring/                   prometheus.yaml · grafana.yaml · jaeger.yaml
+├── docs/                         guides (infra from scratch, index)
 │
 ├── infra/
 │   ├── REBUILD.md
