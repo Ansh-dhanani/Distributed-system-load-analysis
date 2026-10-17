@@ -121,9 +121,8 @@ flowchart TB
 
             SVC["Service: demo-shop :80"]
 
-            subgraph APPS["demo-shop · HPA 2→6"]
+            subgraph APPS["demo-shop · 1 pod"]
                 A1["pod demo-shop<br/>FastAPI :80<br/><i>SQLite in-pod</i>"]
-                A2["pod demo-shop<br/>FastAPI :80<br/><i>SQLite in-pod</i>"]
             end
 
             subgraph OBS["monitoring · optional"]
@@ -135,7 +134,6 @@ flowchart TB
 
     K6 -->|"HTTP"| SVC
     SVC --> A1
-    SVC --> A2
     PROM -.->|"scrape /metrics"| A1
     GRAF -.->|"datasource"| PROM
     classDef default stroke:#57606a;
