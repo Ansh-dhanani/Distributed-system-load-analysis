@@ -34,11 +34,12 @@ flowchart LR
 
 **Three lessons worth the whole exercise:**
 
-1. One unoptimized pod pins at its CPU limit — **more concurrency only queues**.
-2. Horizontal scaling works *until the node runs out of CPU*, then the system
-   **collapses instead of degrading gracefully**.
-3. Raising pod limits before node capacity **makes things worse** — the failure
-   is the finding.
+1. **HPA scales the app cleanly** — 2→6 pods take throughput from ~16.69 RPS
+   to ~53.49 RPS with 0 % errors; p95 stays flat.
+2. **The data tier is the next ceiling** — per-pod SQLite is inconsistent across
+   replicas; Postgres fixes correctness, Redis removes the read hotspot.
+3. **Measure the hop, don't assume it** — Postgres adds ~20 ms p50; cache cuts
+   p50 ~48 % with a 97.8 % hit ratio.
 
 ---
 
@@ -186,8 +187,8 @@ levels stay fixed so deltas are attributable.
 
 ```mermaid
 flowchart LR
-    P0["<b>Phase 0</b><br/>1 replica, no HPA<br/><i>~4 RPS</i>"]
-    P1["<b>Phase 1</b><br/>HPA 2→6 @50%<br/><i>~12.5 RPS</i>"]
+    P0["<b>Phase 0</b><br/>1 replica, no HPA<br/><i>~16.69 RPS</i>"]
+    P1["<b>Phase 1</b><br/>HPA 2→6 @50%<br/><i>~53.49 RPS</i>"]
     P2["<b>Phase 2</b><br/>SQLite → Postgres"]
     P3["<b>Phase 3</b><br/>+ Redis cache"]
     P4["<b>Phase 4</b><br/>+ monitoring cost"]
